@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_llm(provider, model_name, messages, max_tokens=500):
+def run_llm(provider, model_name, messages, temperature=0.5, max_tokens=500):
 
     if provider == "OpenAI":
         client = OpenAI(api_key=config.OPENAI_API_KEY)
@@ -30,12 +30,14 @@ def run_llm(provider, model_name, messages, max_tokens=500):
         return client.models.generate_content(
             model=model_name,
             contents=[message["content"] for message in messages],
+            generation_config={"temperature": temperature}
         ).text
     else:
         return client.chat.completions.create(
             model=model_name,
             messages=messages,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            temperature=temperature
         ).choices[0].message.content
 
 
@@ -43,6 +45,8 @@ class ChatRequest(BaseModel):
     provider: str
     model_name: str
     messages: list[dict]
+    temperature: float
+    max_tokens: int
 
 class ChatResponse(BaseModel):
     message: str
@@ -57,6 +61,12 @@ def chat(
 ) -> ChatResponse:
     
 
-    result = run_llm(payload.provider, payload.model_name, payload.messages)
+    result = run_llm(
+        payload.provider,
+        payload.model_name,
+        payload.messages,
+        payload.temperature,
+        payload.max_tokens,
+    )
 
     return ChatResponse(message=result)

@@ -20,6 +20,12 @@ with st.sidebar:
     st.session_state.provider = provider
     st.session_state.model_name = model_name
 
+temperature= st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
+st.session_state.temperature = temperature
+
+max_tokens= st.slider("Max Tokens", min_value=100, max_value=1000, value=500, step=10)
+st.session_state.max_tokens = max_tokens
+
 
 def api_call(method, url, **kwargs):
 
@@ -67,7 +73,7 @@ if prompt := st.chat_input("Hello! How can I assist you today?"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        output = api_call("post", f"{config.API_URL}/chat", json={"provider": st.session_state.provider, "model_name": st.session_state.model_name, "messages": st.session_state.messages})
+        output = api_call("post", f"{config.API_URL}/chat", json={"provider": st.session_state.provider, "model_name": st.session_state.model_name, "messages": st.session_state.messages, "temperature": st.session_state.temperature, "max_tokens": st.session_state.max_tokens})
         response_data = output[1]
         answer = response_data["message"]
         st.write(answer)
