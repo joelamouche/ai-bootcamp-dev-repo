@@ -3,28 +3,6 @@ import requests
 
 from core.config import config
 
-## Lets create a sidebar with a dropdown for the model list and providers
-with st.sidebar:
-    st.title("Settings")
-
-    #Dropdown for model
-    provider = st.selectbox("Provider", ["OpenAI", "Groq", "Google"])
-    if provider == "OpenAI":
-        model_name = st.selectbox("Model", ["gpt-4o-mini", "gpt-4o"])
-    elif provider == "Groq":
-        model_name = st.selectbox("Model", ["llama-3.3-70b-versatile"])
-    else:
-        model_name = st.selectbox("Model", ["gemini-2.0-flash"])
-
-    # Save provider and model to session state
-    st.session_state.provider = provider
-    st.session_state.model_name = model_name
-
-temperature= st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
-st.session_state.temperature = temperature
-
-max_tokens= st.slider("Max Tokens", min_value=100, max_value=1000, value=500, step=10)
-st.session_state.max_tokens = max_tokens
 
 
 def api_call(method, url, **kwargs):
@@ -73,8 +51,8 @@ if prompt := st.chat_input("Hello! How can I assist you today?"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        output = api_call("post", f"{config.API_URL}/chat", json={"provider": st.session_state.provider, "model_name": st.session_state.model_name, "messages": st.session_state.messages, "temperature": st.session_state.temperature, "max_tokens": st.session_state.max_tokens})
+        output = api_call("post", f"{config.API_URL}/rag", json={"query": prompt})
         response_data = output[1]
-        answer = response_data["message"]
+        answer = response_data["answer"]
         st.write(answer)
     st.session_state.messages.append({"role": "assistant", "content": answer})
