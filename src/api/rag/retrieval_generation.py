@@ -1,5 +1,4 @@
 import openai
-from qdrant_client import QdrantClient
 from langsmith import traceable, get_current_run_tree
 
 @traceable(
@@ -103,8 +102,7 @@ def generate_answer(prompt):
 @traceable(
     name="rag_pipeline",
 )
-def rag_pipeline(question,top_k=5):
-    qdrant_client=QdrantClient(url="http://qdrant:6333")
+def rag_pipeline(question,qdrant_client,top_k=5):
 
     retrieved_context=retrieve_data(question,qdrant_client,top_k)
     preprocessed_context=process_context(retrieved_context)
