@@ -210,3 +210,4 @@ __marimo__/
 # data files
 data/
 qdrant_storage/
+notebooks/personal-project/eas_attestations/

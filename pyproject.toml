@@ -19,4 +19,7 @@ dependencies = [
     "langsmith>=0.4.32",
     "langgraph>=0.6.8",
     "ragas>=0.3.6",
+    "hypersync>=0.8.5",
+    "web3>=7.13.0",
+    "matplotlib>=3.10.7",
 ]
