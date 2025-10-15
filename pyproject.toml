@@ -22,4 +22,5 @@ dependencies = [
     "hypersync>=0.8.5",
     "web3>=7.13.0",
     "matplotlib>=3.10.7",
+    "instructor>=1.11.3",
 ]
