@@ -82,7 +82,6 @@ if prompt := st.chat_input("Hello! How can I assist you today?"):
 
     with st.chat_message("assistant"):
         status, output = api_call("post", f"{config.API_URL}/rag", json={"query": prompt})
-
         answer = output["answer"]
         used_context = output["used_context"]
 
