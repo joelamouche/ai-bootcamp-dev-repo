@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 
 
-class RAGRequest(BaseModel):
+class AgentRequest(BaseModel):
     query: str = Field(..., description="The query to be used in the RAG pipeline")
 
 
@@ -11,7 +11,7 @@ class RAGUsedContext(BaseModel):
     price: Optional[float] = Field(..., description="The price of the item")
     description: str = Field(..., description="The description of the item")
 
-class RAGResponse(BaseModel):
+class AgentResponse(BaseModel):
     request_id: str = Field(..., description="The request ID")
     answer: str = Field(..., description="The answer to the query")
     used_context: List[RAGUsedContext] = Field(..., description="Information about items used to answer the query")

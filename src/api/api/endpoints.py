@@ -1,26 +1,29 @@
-from fastapi import APIRouter,Request
-from src.api.api.models import RAGUsedContext, RAGRequest,RAGResponse
+from fastapi import APIRouter, Request
 import logging
-from api.rag.retrieval_generation import rag_pipeline_wrapper
+
+from api.api.models import AgentRequest, AgentResponse, RAGUsedContext
+
+from api.agent.graph import run_agent_wrapper
 
 
+logger = logging.getLogger(__name__)
 
-logger=logging.getLogger(__name__)  
-rag_router=APIRouter()
+rag_router = APIRouter()
 
 @rag_router.post("/")
 def rag(
-    request:Request,
-    payload:RAGRequest
-    )->RAGResponse:
+    request: Request,
+    payload: AgentRequest
+) -> AgentResponse:
 
-    answer=rag_pipeline_wrapper(payload.query)
+    answer = run_agent_wrapper(payload.query)
 
-    return RAGResponse(
+    return AgentResponse(
         request_id=request.state.request_id,
         answer=answer["answer"],
         used_context=[RAGUsedContext(**used_context) for used_context in answer["used_context"]]
     )
 
-api_router=APIRouter()
-api_router.include_router(rag_router,prefix="/rag",tags=["rag"])
+
+api_router = APIRouter()
+api_router.include_router(rag_router, prefix="/rag", tags=["rag"])
