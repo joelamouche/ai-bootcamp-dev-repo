@@ -211,3 +211,4 @@ __marimo__/
 data/
 qdrant_storage/
 notebooks/personal-project/eas_attestations/
+postgres_data/

@@ -16,7 +16,7 @@ def rag(
     payload: AgentRequest
 ) -> AgentResponse:
 
-    answer = run_agent_wrapper(payload.query)
+    answer = run_agent_wrapper(payload.query, payload.session_id)
 
     return AgentResponse(
         request_id=request.state.request_id,

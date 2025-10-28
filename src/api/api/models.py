@@ -4,7 +4,7 @@ from typing import Optional, List
 
 class AgentRequest(BaseModel):
     query: str = Field(..., description="The query to be used in the RAG pipeline")
-
+    session_id: str = Field(..., description="The session ID")
 
 class RAGUsedContext(BaseModel):
     image_url: str = Field(..., description="The image URL of the item")

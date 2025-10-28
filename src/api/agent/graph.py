@@ -1,3 +1,4 @@
+from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import BaseModel
 from typing import List, Dict, Any, Annotated
 from operator import add
@@ -84,24 +85,28 @@ graph = workflow.compile()
 
 #### Agent Execution function
 
-def run_agent(question: str):
+def run_agent(question: str, session_id: str):
 
     initial_state = {
         "messages": [{"role": "user", "content": question}],
         "iteration": 0,
         "available_tools": tool_descriptions
     }
+    config = {"configurable": {"thread_id": session_id}}
 
-    result = graph.invoke(initial_state)
+    with PostgresSaver.from_conn_string("postgresql://langgraph_user:langgraph_password@postgres:5432/langgraph_db") as checkpointer:
+
+        graph = workflow.compile(checkpointer=checkpointer)
+
+        result = graph.invoke(initial_state, config=config)
 
     return result
 
-
-def run_agent_wrapper(question: str):
+def run_agent_wrapper(question: str, session_id: str):
 
     qdrant_client = QdrantClient(url="http://qdrant:6333")
 
-    result = run_agent(question)
+    result = run_agent(question, session_id)
 
     used_context = []
     dummy_vector = np.zeros(1536).tolist()
