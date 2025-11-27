@@ -1,10 +1,10 @@
 from typing import Dict, List, Optional
-from utils.schemas import RankedFollower, UserProfile
+from utils.schemas import RankedUser, UserProfile
 import time
 
 
-def follow_top_followers(
-    ranked_followers: List[RankedFollower],
+def follow_top_users(
+    ranked_users: List[RankedUser],
     client,
     top_n: int = 10,
 ):
@@ -12,7 +12,7 @@ def follow_top_followers(
     Follow the top N ranked followers.
     
     Args:
-        ranked_followers: List of RankedFollower objects
+        ranked_users: List of RankedUser objects
         client: Bluesky client (uses global 'client' if not provided)
         handle_to_did: Mapping from handle to DID (optional, will fetch if not provided)
         top_n: Number of top followers to follow (default: 10)
@@ -20,8 +20,8 @@ def follow_top_followers(
     Returns:
         dict: Summary with counts of followed, already_following, errors, etc.
     """
-    if not ranked_followers:
-        print("⚠️ No ranked followers to follow")
+    if not ranked_users:
+        print("⚠️ No ranked users to follow")
         return {}
     
     # Use global client if not provided
@@ -30,7 +30,7 @@ def follow_top_followers(
         if client is None:
             raise ValueError("Bluesky client not provided and not found in globals.")
     
-    top_n_followers = ranked_followers[:top_n]
+    top_n_followers = ranked_users[:top_n]
     print(f"\n👥 Following top {len(top_n_followers)} most relevant accounts...")
     
     followed_count = 0

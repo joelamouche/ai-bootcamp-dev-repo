@@ -1,6 +1,6 @@
 from typing import List
 from datetime import datetime, timedelta
-from utils.schemas import UserProfile, RankedFollower
+from utils.schemas import UserProfile, RankedUser
 from openai import OpenAI
 
 def is_user_active_in_last_month(client, user_did, days=30, debug=False) -> bool:
@@ -151,30 +151,30 @@ def is_user_active_in_last_month(client, user_did, days=30, debug=False) -> bool
         return False
 
 
-def analyze_followers_with_ai(followers: List[UserProfile], my_profile: UserProfile, openai_client: OpenAI, num_results: int = 10)-> List[RankedFollower]:
+def analyze_users_with_ai(users: List[UserProfile], my_profile: UserProfile, openai_client: OpenAI, num_results: int = 10)-> List[RankedUser]:
     """
-    Use AI to analyze and rank followers by relevance to your profile.
+    Use AI to analyze and rank users by relevance to your profile.
     
     Args:
-        followers: List of UserProfile objects
+        users: List of UserProfile objects
         my_profile: Your profile object
-        target_username: Username of the target account whose followers we're analyzing
+        target_username: Username of the target account whose users we're analyzing
         openai_client: OpenAI client with instructor
         num_results: Number of top results to return (default: 10)
     
     Returns:
-        List of RankedFollower objects sorted by relevance
+        List of RankedUser objects sorted by relevance
     """
-    if not followers:
-        print("⚠️ No followers to analyze")
+    if not users:
+        print("⚠️ No users to analyze")
         return []
     
-    print(f"\n🤖 Analyzing {len(followers)} followers with AI...")
+    print(f"\n🤖 Analyzing {len(users)} users with AI...")
     
     # Prepare follower data for AI analysis
-    followers_data = []
-    for follower in followers:
-        followers_data.append({
+    users_data = []
+    for follower in users:
+        users_data.append({
             "handle": follower.handle,
             "display_name": follower.display_name or follower.handle,
             "description": follower.description or ""
@@ -185,7 +185,7 @@ def analyze_followers_with_ai(followers: List[UserProfile], my_profile: UserProf
     my_display_name = my_profile.display_name or my_profile.handle
     
     # Create prompt for AI analysis
-    analysis_prompt = f"""You are analyzing Bluesky followers to find the most relevant accounts for someone to follow.
+    analysis_prompt = f"""You are analyzing Bluesky users to find the most relevant accounts for someone to follow.
 
 My Profile:
 - Display Name: {my_display_name}
@@ -198,10 +198,10 @@ I want to find users who would be most relevant for me to follow based on:
 3. Content relevance
 4. Community overlap
 
-Here are the followers to analyze:
-{chr(10).join([f"- @{f['handle']} ({f['display_name']}): {f['description'][:150]}" for f in followers_data])}
+Here are the users to analyze:
+{chr(10).join([f"- @{f['handle']} ({f['display_name']}): {f['description'][:150]}" for f in users_data])}
 
-Please rank these followers by relevance to my profile. Return the top {num_results} most relevant followers with:
+Please rank these users by relevance to my profile. Return the top {num_results} most relevant users with:
 - handle: The Bluesky handle
 - display_name: Their display name
 - description: Their profile description
@@ -214,23 +214,23 @@ Focus on accounts that share interests, professional connections, or would provi
     try:
         # Use instructor to get structured output
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": "You are an expert at analyzing social media profiles and finding relevant connections."},
                 {"role": "user", "content": analysis_prompt}
             ],
-            response_model=List[RankedFollower],
+            response_model=List[RankedUser],
             temperature=0.3
         )
         
-        ranked_followers = response
-        print(f"✅ AI analysis complete! Found {len(ranked_followers)} relevant followers")
-        # print followers with relevance score and reasoning, with relevance score >0.6
-        for follower in ranked_followers:
+        ranked_users = response
+        print(f"✅ AI analysis complete! Found {len(ranked_users)} relevant users")
+        # print users with relevance score and reasoning, with relevance score >0.6
+        for follower in ranked_users:
             if follower.relevance_score > 0.6:
                 print(f"@{follower.handle} ({follower.display_name}): {follower.relevance_score:.2f} - {follower.reasoning}")
         
-        return ranked_followers
+        return ranked_users
         
     except Exception as e:
         print(f"❌ Error during AI analysis: {e}")
