@@ -1,3 +1,4 @@
+import time
 from typing import List
 from datetime import datetime, timedelta
 from utils.schemas import UserProfile, RankedUser
@@ -150,6 +151,39 @@ def is_user_active_in_last_month(client, user_did, days=30, debug=False) -> bool
         # If we can't check activity, assume inactive to be safe
         return False
 
+def filter_non_active_users(
+    client,
+    users: List[UserProfile],
+    active_days: int = 30
+) -> List[UserProfile]:
+    """
+    Filter users by recent activity.
+
+    Args:
+        client: Authenticated Bluesky client
+        users: List of UserProfile objects to filter
+        active_days: Number of days to look back for activity (default: 30)
+
+    Returns:
+        List of active UserProfile objects
+    """
+    print(f"\n🔍 Filtering followers active in the last {active_days} days...")
+    active_followers = []
+    checked_count = 0
+
+    for follower in users:
+        checked_count += 1
+        if checked_count % 10 == 0:
+            print(f"   Checking activity: {checked_count}/{len(users)}...")
+
+        if is_user_active_in_last_month(client, follower.did, days=active_days):
+            active_followers.append(follower)
+
+        # Small delay to avoid rate limiting
+        time.sleep(0.1)
+
+    print(f"✅ Found {len(active_followers)} active followers out of {len(users)} checked")
+    return active_followers
 
 def analyze_users_with_ai(users: List[UserProfile], my_profile: UserProfile, openai_client: OpenAI, num_results: int = 10)-> List[RankedUser]:
     """

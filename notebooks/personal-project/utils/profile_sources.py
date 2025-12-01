@@ -13,38 +13,37 @@ def fetch_followers_from_user(
 ) -> List[UserProfile]:
     """
     Fetch followers from a specific Bluesky user, optionally filtering by activity and return a list of UserProfile objects.
-    
+
     Args:
         client: Authenticated Bluesky client
         username: Target username (with or without @)
         max_followers: Maximum number of followers to fetch (default: 100)
         filter_active: If True, only return followers active in the last month (default: True)
         active_days: Number of days to look back for activity (default: 30)
-    
+
     Returns:
         list of UserProfile objects
     """
-    # Clean username
     clean_username = username.lstrip('@').strip()
-    
+
     print(f"📊 Fetching followers of @{clean_username}...")
-    
+
     try:
         # Get the target profile
         target_profile = client.get_profile(clean_username)
         print(f"✅ Found profile: {target_profile.display_name or target_profile.handle}")
         print(f"   Followers: {target_profile.followers_count}")
-        
+
         # Fetch followers (with pagination if needed)
         all_followers = []
         cursor = None
-        
+
         while len(all_followers) < max_followers:
             if cursor:
                 followers_response = client.get_followers(target_profile.did, limit=100, cursor=cursor)
             else:
                 followers_response = client.get_followers(target_profile.did, limit=100)
-            
+
             # Map followers to UserProfile objects, ensuring strings for required fields
             for follower in followers_response.followers:
                 handle = getattr(follower, "handle", "") or ""
@@ -59,46 +58,30 @@ def fetch_followers_from_user(
                         did=did,
                     )
                 )
-            
+
             if not hasattr(followers_response, 'cursor') or not followers_response.cursor:
                 break
             cursor = followers_response.cursor
-            
+
             if len(all_followers) >= max_followers:
                 break
-        
+
         # Limit to the requested number (before filtering)
         all_followers = all_followers[:max_followers]
-        
+
         print(f"✅ Fetched {len(all_followers)} followers")
-        
-        # Filter by activity if requested
+
         if filter_active:
-            print(f"\n🔍 Filtering followers active in the last {active_days} days...")
-            active_followers = []
-            checked_count = 0
-            
-            for follower in all_followers:
-                checked_count += 1
-                if checked_count % 10 == 0:
-                    print(f"   Checking activity: {checked_count}/{len(all_followers)}...")
-                
-                if is_user_active_in_last_month(client, follower.did, days=active_days):
-                    active_followers.append(follower)
-                
-                # Small delay to avoid rate limiting
-                time.sleep(0.1)
-            
-            print(f"✅ Found {len(active_followers)} active followers out of {len(all_followers)} checked")
-            return active_followers
+            return filter_non_active_users(client, all_followers, active_days)
         else:
             return all_followers
-        
+
     except Exception as e:
         print(f"❌ Error fetching followers: {e}")
         import traceback
         traceback.print_exc()
         return []
+
 
 def get_my_profile(client)-> UserProfile:
     """

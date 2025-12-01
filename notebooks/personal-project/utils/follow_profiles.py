@@ -2,6 +2,12 @@ from typing import Dict, List, Optional
 from utils.schemas import RankedUser, UserProfile
 import time
 
+def follow_user(user: UserProfile, client):
+    """
+    Follow a user.
+    """
+    client.follow(user.did)
+    return True
 
 def follow_top_users(
     ranked_users: List[RankedUser],
