@@ -1,7 +1,7 @@
 import time
 from typing import List
 from utils.schemas import UserProfile
-from utils.profile_filters import is_user_active_in_last_month
+from utils.profile_filters import  filter_non_active_users
 
 
 def fetch_followers_from_user(
