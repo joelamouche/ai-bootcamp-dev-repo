@@ -271,3 +271,87 @@ Focus on accounts that share interests, professional connections, or would provi
         import traceback
         traceback.print_exc()
         return []
+
+def analyze_user_with_ai(
+    user: UserProfile, my_profile: UserProfile, openai_client: OpenAI
+) -> RankedUser:
+    """
+    Use AI to analyze a single user and return their relevance to your profile.
+
+    Args:
+        user: UserProfile object to analyze
+        my_profile: Your profile object
+        openai_client: OpenAI client with instructor
+
+    Returns:
+        RankedUser object with relevance score and reasoning
+    """
+    if not user:
+        print("⚠️ No user to analyze")
+        return None
+
+    print(f"\n🤖 Analyzing user @{user.handle} with AI...")
+
+    # Prepare data for AI analysis
+    user_data = {
+        "handle": user.handle,
+        "display_name": user.display_name or user.handle,
+        "description": user.description or "",
+        "did": user.did,
+    }
+
+    my_description = my_profile.description or ""
+    my_display_name = my_profile.display_name or my_profile.handle
+
+    # Create prompt for AI analysis
+    analysis_prompt = f"""You are analyzing a Bluesky user to determine their relevance for someone to follow.
+
+My Profile:
+- Display Name: {my_display_name}
+- Handle: {my_profile.handle}
+- Description: {my_description}
+
+User to analyze:
+- Handle: @{user_data['handle']}
+- Display Name: {user_data['display_name']}
+- Description: {user_data['description']}
+- DID: {user_data['did']}
+
+Please analyze this user for relevance to my profile. Return:
+- handle: The Bluesky handle
+- display_name: Their display name
+- description: Their profile description
+- relevance_score: A score from 0.0 to 1.0 (1.0 = most relevant)
+- reasoning: A brief explanation of why they're relevant
+- did: The DID of the user
+
+Focus on shared interests, professional connections, and content relevance."""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4.1",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert at analyzing social media profiles and finding relevant connections.",
+                },
+                {"role": "user", "content": analysis_prompt},
+            ],
+            response_model=RankedUser,
+            temperature=0.3,
+        )
+
+        ranked_user = response
+        print(
+            f"✅ AI analysis complete! @{ranked_user.handle} ({ranked_user.display_name}): "
+            f"{ranked_user.relevance_score:.2f} - {ranked_user.reasoning}"
+        )
+
+        return ranked_user
+
+    except Exception as e:
+        print(f"❌ Error during AI analysis: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return None

@@ -1,6 +1,9 @@
 from typing import Dict, List, Optional
 from utils.schemas import RankedUser, UserProfile
 import time
+from utils.user_db import is_user_in_db, insert_user_profile
+from utils.schemas import StoredUserProfile
+from utils.profile_filters import analyze_user_with_ai
 
 def follow_user(user: UserProfile, client):
     """
@@ -112,3 +115,23 @@ def follow_top_users(
     print(f"   📈 Total processed: {len(top_n_followers)}")
     
     return summary
+
+# process list of users
+# see if already followed in db, if not followed and not already in db, analyze, follow and insert into db
+# if followed, do nothing
+# if already in db, do nothing
+PERTINANCE_THRESHOLD=0.6
+def process_users(users, my_profile, openai_client, bluesky_client):
+    for user in users:
+        if not is_user_in_db(user.handle):
+            print(f"User {user.handle} not followed and not in db, analyzing, following and inserting into db")
+            analyzed_user=analyze_user_with_ai(user, my_profile, openai_client)
+            follow_status="rejected"
+            if analyzed_user.relevance_score >= PERTINANCE_THRESHOLD:
+                print(f"User {user.handle} is relevant, following and inserting into db")
+                follow_status="followed"
+                follow_user(user, bluesky_client)
+            user_to_insert=StoredUserProfile(**analyzed_user.model_dump(), follow_status=follow_status, last_updated=int(time.time()))
+            insert_user_profile([user_to_insert])
+        else:
+            print(f"User {user.handle} already followed or in db")

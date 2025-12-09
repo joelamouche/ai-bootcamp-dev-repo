@@ -121,3 +121,26 @@ def search_profiles_by_keyword(client,keyword, limit=100)->List[UserProfile]:
     # get the profiles that created the posts
     profiles = [post.get("author", {}) for post in posts]
     return [UserProfile(handle=profile.get("handle", ""), display_name=profile.get("display_name", ""), description=profile.get("description", ""), did=profile.get("did", "")) for profile in profiles]
+
+def get_custom_feed_profiles(bluesky_client,actor,feed_uri , limit=100)->List[UserProfile]: 
+    profile = bluesky_client.app.bsky.actor.get_profile({"actor": actor})
+    did = profile.did  # e.g. "did:plc:xyz..."
+
+    # 3. Build the feed AT-URI from the URL
+    # https://bsky.app/profile/skyfeed.xyz/feed/h-opensource
+    feed_uri = f"at://{did}/app.bsky.feed.generator/{feed_uri}"
+
+    # 4. Fetch the feed items
+    resp = bluesky_client.app.bsky.feed.get_feed({"feed": feed_uri, "limit": limit})
+
+    # get the profiles of the authors of the posts and
+    # use client.get_profile to get the profile of the author   
+    profiles = [bluesky_client.get_profile(item.post.author.handle) for item in resp.feed]
+    # map the profiles to UserProfile
+    profiles = [UserProfile(
+        # if no field, set it to an empty string
+        handle=profile.handle if profile.handle else "", 
+        display_name=profile.display_name if profile.display_name else "", 
+        description=profile.description if profile.description else "", 
+        did=profile.did if profile.did else "") for profile in profiles]
+    return profiles
