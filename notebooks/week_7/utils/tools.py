@@ -219,7 +219,7 @@ def add_to_shopping_cart(items: list[dict], user_id: str, cart_id: str) -> str:
 
     conn = psycopg2.connect(
         host="localhost",
-        port=5433,
+        port=5434,
         database="langgraph_db",
         user="langgraph_user",
         password="langgraph_password"
@@ -322,7 +322,7 @@ def get_shopping_cart(user_id: str, cart_id: str) -> list[dict]:
     
     conn = psycopg2.connect(
         host="localhost",
-        port=5433,
+        port=5434,
         database="langgraph_db",
         user="langgraph_user",
         password="langgraph_password"
@@ -367,7 +367,7 @@ def remove_from_cart(product_id: str, user_id: str, cart_id: str) -> str:
     
     conn = psycopg2.connect(
         host="localhost",
-        port=5433,
+        port=5434,
         database="langgraph_db",
         user="langgraph_user",
         password="langgraph_password"
@@ -404,7 +404,7 @@ def check_warehouse_availability(items: list[dict]) -> dict:
     
     conn = psycopg2.connect(
         host="localhost",
-        port=5433,
+        port=5434,
         database="langgraph_db",
         user="langgraph_user",
         password="langgraph_password"
@@ -544,7 +544,7 @@ def reserve_warehouse_items(reservations: list[dict]) -> dict:
     
     conn = psycopg2.connect(
         host="localhost",
-        port=5433,
+        port=5434,
         database="langgraph_db",
         user="langgraph_user",
         password="langgraph_password"

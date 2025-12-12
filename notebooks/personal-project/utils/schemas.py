@@ -1,6 +1,6 @@
-import datetime
+from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import List
+from typing import Optional
 
 class UserProfile(BaseModel):
     handle: str = Field(description="Bluesky handle of the user")
@@ -18,3 +18,12 @@ class StoredUserProfile(RankedUser):
     # follow_status is either none, pending, followed, rejected or unfollowed
     follow_status: str = Field(description="Follow status of the user")
     last_updated: int = Field(description="Last updated timestamp")
+    last_post_processed: Optional[int] = Field(description="Last post processed timestamp")
+
+class Content(BaseModel):
+    id: str
+    content_text: str
+    mediaType: str
+    author: str
+    created_date: Optional[datetime] = None
+    likes: Optional[int] = 0

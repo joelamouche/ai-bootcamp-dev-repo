@@ -1,9 +1,11 @@
+import datetime
 from typing import Dict, List, Optional
 from utils.schemas import RankedUser, UserProfile
 import time
-from utils.user_db import is_user_in_db, insert_user_profile
+from utils.user_db import get_user_follow_status, insert_user_profile
 from utils.schemas import StoredUserProfile
 from utils.profile_filters import analyze_user_with_ai
+from utils.process_posts import process_profile_posts_into_qdrant
 
 def follow_user(user: UserProfile, client):
     """
@@ -121,17 +123,34 @@ def follow_top_users(
 # if followed, do nothing
 # if already in db, do nothing
 PERTINANCE_THRESHOLD=0.6
-def process_users(users, my_profile, openai_client, bluesky_client):
+def process_users( users, my_profile, openai_client, bluesky_client, qdrant_client):
     for user in users:
-        if not is_user_in_db(user.handle):
+        follow_status = get_user_follow_status(user.handle)
+        if follow_status== "none":
             print(f"User {user.handle} not followed and not in db, analyzing, following and inserting into db")
             analyzed_user=analyze_user_with_ai(user, my_profile, openai_client)
             follow_status="rejected"
+            last_post_processed = None
             if analyzed_user.relevance_score >= PERTINANCE_THRESHOLD:
-                print(f"User {user.handle} is relevant, following and inserting into db")
+                print(f"User {user.handle} is relevant, following")
                 follow_status="followed"
                 follow_user(user, bluesky_client)
-            user_to_insert=StoredUserProfile(**analyzed_user.model_dump(), follow_status=follow_status, last_updated=int(time.time()))
+                print(f"Processing {user.handle} posts into qdrant")
+                process_profile_posts_into_qdrant(qdrant_client,bluesky_client,user.handle)
+                last_post_processed = int(time.time())
+            user_to_insert=StoredUserProfile(
+                # overwrite the handle, display_name, description and did with the user's values
+                **analyzed_user.model_dump(exclude={"handle", "display_name", "description", "did"}), 
+                follow_status=follow_status, 
+                last_updated=int(time.time()), 
+                last_post_processed=last_post_processed,
+                handle=user.handle, display_name=user.display_name, description=user.description, did=user.did)
             insert_user_profile([user_to_insert])
+        elif follow_status == "followed":
+            print(f"User {user.handle} already followed")
+        elif follow_status == "rejected":
+            print(f"User {user.handle} already rejected")
+        elif follow_status == "unfollowed":
+            print(f"User {user.handle} already unfollowed")
         else:
-            print(f"User {user.handle} already followed or in db")
+            print(f"User {user.handle} already in db")

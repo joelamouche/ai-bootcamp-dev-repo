@@ -118,9 +118,16 @@ def search_posts_by_keyword(client,keyword, limit=100):
 def search_profiles_by_keyword(client,keyword, limit=100)->List[UserProfile]:
     # get the posts returned by the endpoint equivalent of https://bsky.app/search?q=ethglobal
     posts = search_posts_by_keyword(client,keyword, limit)
-    # get the profiles that created the posts
-    profiles = [post.get("author", {}) for post in posts]
-    return [UserProfile(handle=profile.get("handle", ""), display_name=profile.get("display_name", ""), description=profile.get("description", ""), did=profile.get("did", "")) for profile in profiles]
+    # use client.get_profile to get the profile of the author   
+    profiles = [client.get_profile(item.get("author", {}).get("handle", "")) for item in posts]
+    # map the profiles to UserProfile
+    profiles = [UserProfile(
+        # if no field, set it to an empty string
+        handle=profile.handle if profile.handle else "", 
+        display_name=profile.display_name if profile.display_name else "", 
+        description=profile.description if profile.description else "", 
+        did=profile.did if profile.did else "") for profile in profiles]
+    return profiles
 
 def get_custom_feed_profiles(bluesky_client,actor,feed_uri , limit=100)->List[UserProfile]: 
     profile = bluesky_client.app.bsky.actor.get_profile({"actor": actor})

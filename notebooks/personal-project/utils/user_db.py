@@ -8,10 +8,10 @@ from psycopg2.extras import RealDictCursor, execute_batch
 from utils.schemas import StoredUserProfile, UserProfile, RankedUser
 
 # this should check the status of the user in the db, return true if status is followed
-def is_user_in_db(handle):
+def get_user_follow_status(handle)->str:
     conn = psycopg2.connect(
         host="localhost",
-        port=5433,
+        port=5434,
         database="langgraph_db",
         user="langgraph_user",
         password="langgraph_password"   
@@ -24,9 +24,9 @@ def is_user_in_db(handle):
         cursor.execute(query, (handle,))
         result = cursor.fetchone()
         if result is None:
-            return False  # User not in db, or no status to check
+            return "none"  # User not in db, or no status to check
         # With RealDictCursor, result is a dict like {'follow_status': ...}
-        return result.get("follow_status") == "followed"
+        return result.get("follow_status")
     finally:
         conn.close()
 
@@ -44,7 +44,7 @@ def insert_user_profile(user_profiles: List[StoredUserProfile]):
         # Connect to the database
         conn = psycopg2.connect(
             host="localhost",
-            port=5433,
+            port=5434,
             database="langgraph_db",
             user="langgraph_user",
             password="langgraph_password"
@@ -94,7 +94,7 @@ def insert_user_profile(user_profiles: List[StoredUserProfile]):
 def clear_user_profiles():
     conn = psycopg2.connect(
         host="localhost",
-        port=5433,
+        port=5434,
         database="langgraph_db",
         user="langgraph_user",
         password="langgraph_password"
