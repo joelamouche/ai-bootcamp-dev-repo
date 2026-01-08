@@ -109,3 +109,23 @@ def clear_user_profiles():
     finally:
         if conn:
             conn.close()
+
+def fetch_top_relevance_profiles( limit=20):
+    conn = psycopg2.connect(
+        host="localhost",
+        port=5434,
+        database="langgraph_db",
+        user="langgraph_user",
+        password="langgraph_password"
+    )
+    with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            """
+            SELECT handle, display_name, description, did, relevance_score 
+            FROM user_profiles.stored_user_profiles
+            ORDER BY relevance_score DESC 
+            LIMIT %s
+            """, 
+            (limit,)
+        )
+        return cursor.fetchall()
