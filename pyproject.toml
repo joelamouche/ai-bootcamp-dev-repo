@@ -36,3 +36,7 @@ dependencies = [
     "hdbscan>=0.8.41",
     "scikit-learn>=1.8.0",
 ]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
