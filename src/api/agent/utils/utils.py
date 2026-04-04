@@ -51,6 +51,7 @@ def parse_function_definition(function_def: str) -> Dict[str, Any]:
     
     # Extract docstring
     docstring = ast.get_docstring(func) or ""
+    param_descs: Dict[str, str] = {}
     if docstring:
         # Extract description (first line/paragraph)
         desc_end = docstring.find('\n\n') if '\n\n' in docstring else docstring.find('\nArgs:')
@@ -151,14 +152,20 @@ def parse_docstring_params(docstring: str) -> Dict[str, str]:
 
 
 def get_tool_descriptions(function_list):
-    """Extract tool descriptions from the function list"""
+    """Extract tool descriptions from the function list (plain functions or LangChain BaseTool)."""
+    from langchain_core.tools import BaseTool
+    from langchain_core.utils.function_calling import convert_to_openai_function
+
     descriptions = []
 
     for function in function_list:
+        if isinstance(function, BaseTool):
+            descriptions.append(convert_to_openai_function(function))
+            continue
         function_string = inspect.getsource(function)
         result = parse_function_definition(function_string)
 
         if result:
             descriptions.append(result)
-    
+
     return descriptions if descriptions else "Could not extract tool descriptions"

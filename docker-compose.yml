@@ -1,35 +1,50 @@
 services:
-  # streamlit-app:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.streamlit
-  #   ports:
-  #     - 8501:8501
-  #   env_file:
-  #     - .env
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./src/chatbot_ui:/app/src/chatbot_ui
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    # Streamlit always calls the API by *service name* + *container* port (8000).
+    # API_HOST_PORT only changes the port on your Mac; it must NOT be copied into API_URL here.
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      - api
+    # Host port (left side): set STREAMLIT_HOST_PORT in .env if 8501 is already in use.
+    ports:
+      - "${STREAMLIT_HOST_PORT:-8501}:8501"
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./src/chatbot_ui:/app/src/chatbot_ui
 
-  # api:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.fastapi
-  #   ports:
-  #     - 8000:8000
-  #   env_file:
-  #     - .env
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./src/api:/app/src/api
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+    # Left side = port on your machine; right side = port inside the container (always 8000).
+    # Other services still use http://api:8000 — do not set API_URL to localhost for Docker.
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    env_file:
+      - .env
+    # Overrides .env: empty MEETUP_STATE_FILE would disable persistence and admin would stay empty
+    # after uvicorn --reload (bind-mount saves restart the process).
+    environment:
+      MEETUP_STATE_FILE: /app/data/meetup_agent_state.json
+    restart: unless-stopped
+    volumes:
+      - ./src/api:/app/src/api
+      - meetup_data:/app/data
 
   qdrant:
     image: qdrant/qdrant
     ports:
       - 6333:6333
       - 6334:6334
+    # Named volume avoids macOS/virtiofs bind-mount "Unrecognized filesystem" warnings from Qdrant.
     volumes:
-      - ./qdrant_storage:/qdrant/storage:z
+      - qdrant_data:/qdrant/storage
     restart: unless-stopped
 
   postgres:
@@ -64,3 +79,7 @@ services:
   #   env_file:
   #     - .env
   #   restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  meetup_data:
