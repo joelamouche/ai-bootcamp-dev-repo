@@ -2,8 +2,14 @@
 Tools for the meetup organizer agent (global in-memory registry; Qdrant later).
 """
 
+from __future__ import annotations
+
 import json
 import logging
+from typing import Annotated
+
+from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 
 from api.agent import meetup_context as ctx
 
@@ -11,31 +17,38 @@ from api.agent import meetup_context as ctx
 logger = logging.getLogger(__name__)
 
 
+@tool
 def append_my_learning_profile(
-    user_id: str,
-    telegram_handle: str,
     want_to_learn: str,
     can_teach: str,
+    user_id: Annotated[str, InjectedState("user_id")],
+    telegram_handle: Annotated[str, InjectedState("telegram_handle")],
 ) -> str:
     """Save or update this user's learning goals and what they can teach in the global meetup registry.
 
-    Call this when the user states what they want to learn and/or what they could teach (e.g. hackathon interests).
-
-    Args:
-        user_id: Stable user id (e.g. Telegram chat/thread id).
-        telegram_handle: Public handle or username for coordination (e.g. @nickname).
-        want_to_learn: Topics or skills they want to learn.
-        can_teach: Topics or skills they offer to teach or facilitate.
+    Call as soon as the user shares anything about what they want to learn and/or what they could teach.
+    Pass an empty string for a side they did not mention; stored values for that user are preserved for empty fields.
+    Identity (user_id, telegram_handle) is injected from graph state — only pass want_to_learn and can_teach.
 
     Returns:
         Confirmation text for the agent to relay to the user (no other users' data).
     """
+    user_id = str(user_id or "").strip()
+    telegram_handle = str(telegram_handle or "").strip()
     logger.info(
         "append_my_learning_profile: user_id=%s want_to_learn_len=%d can_teach_len=%d",
         user_id,
         len(want_to_learn or ""),
         len(can_teach or ""),
     )
+    if not user_id:
+        logger.warning(
+            "append_my_learning_profile: empty user_id (graph state); not persisting profile"
+        )
+        return (
+            "Could not save your profile: the session has no user id. "
+            "Retry from the chat UI so thread_id is sent with the request."
+        )
 
     rec = ctx.append_or_update_profile(
         user_id=user_id,

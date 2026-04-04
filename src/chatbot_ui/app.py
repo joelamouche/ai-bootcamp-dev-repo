@@ -183,6 +183,7 @@ def _default_thread_bucket():
         "latest_feedback": None,
         "show_feedback_box": False,
         "feedback_submission_status": None,
+        "delivered_meetup_notification_ids": [],
     }
 
 
@@ -197,6 +198,42 @@ st.session_state.latest_feedback = _tb["latest_feedback"]
 st.session_state.show_feedback_box = _tb["show_feedback_box"]
 st.session_state.feedback_submission_status = _tb["feedback_submission_status"]
 
+
+def poll_meetup_outreach_banners() -> None:
+    """Pop queued meetup notifications from the API and append them as persistent chat messages.
+
+    Using st.info() alone made banners disappear on rerun; Telegram-like threads need durable messages.
+    """
+    if "delivered_meetup_notification_ids" not in _tb:
+        _tb["delivered_meetup_notification_ids"] = []
+    delivered: list = _tb["delivered_meetup_notification_ids"]
+
+    try:
+        r = requests.get(
+            f"{api_base_url()}/rag/meetup-pending-notifications",
+            params={"thread_id": thread_id},
+            timeout=5,
+        )
+        if not r.ok:
+            return
+        for n in r.json().get("notifications") or []:
+            pid = str(n.get("proposal_id") or "").strip()
+            msg = (n.get("message") or "").strip()
+            if not msg:
+                continue
+            dedup_key = pid or msg[:200]
+            if dedup_key in delivered:
+                continue
+            delivered.append(dedup_key)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": f"Meetup notification\n\n{msg}"}
+            )
+        _tb["messages"] = st.session_state.messages
+    except Exception:
+        logger.debug("meetup pending notifications poll failed", exc_info=True)
+
+
+poll_meetup_outreach_banners()
 
 with st.sidebar:
     with st.expander("Test session (Telegram simulation)", expanded=True):

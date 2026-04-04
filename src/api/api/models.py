@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Union
+from typing import Any, Optional, List, Union
 
 
 class AgentRequest(BaseModel):
@@ -32,3 +32,22 @@ class FeedbackRequest(BaseModel):
 class FeedbackResponse(BaseModel):
     request_id: str = Field(..., description="The request ID")
     status: str = Field(..., description="The status of the feedback submission")
+
+
+class MeetupPendingNotificationsResponse(BaseModel):
+    request_id: str = Field(..., description="The request ID")
+    notifications: List[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Queued meetup outreach for this thread/user (popped from the server queue)",
+    )
+
+
+class MeetupAdminContextResponse(BaseModel):
+    request_id: str = Field(..., description="The request ID")
+    registry: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="user_id → saved profile (want_to_learn, can_teach, telegram_handle, …)",
+    )
+    proposals: List[dict[str, Any]] = Field(default_factory=list)
+    pending_notifications: List[dict[str, Any]] = Field(default_factory=list)
+    stats: dict[str, int] = Field(default_factory=dict)

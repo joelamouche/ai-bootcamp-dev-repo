@@ -1,4 +1,7 @@
+import json
 import logging
+import threading
+import time
 from pydantic import BaseModel
 from typing import List, Dict, Any, Annotated, cast
 from operator import add
@@ -12,6 +15,8 @@ from api.agent.agents import (
     RAGUsedContext,
     Delegation,
 )
+from langchain_core.utils.function_calling import convert_to_openai_function
+
 from api.agent.utils.utils import get_tool_descriptions
 from api.agent.meetup_tools import (
     append_my_learning_profile,
@@ -23,14 +28,55 @@ from langgraph.prebuilt import ToolNode
 # from qdrant_client import QdrantClient
 # from qdrant_client.models import Filter, FieldCondition, MatchValue
 # import numpy as np
-import json
 from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import Field
 
 from api.agent import meetup_context as meetup_context_store
+from api.agent.conversation_messages import append_profile_tool_ran_after_last_user
 
 
 logger = logging.getLogger(__name__)
+
+# PostgresSaver.setup() is idempotent but can add latency if run on every HTTP request.
+_postgres_setup_lock = threading.Lock()
+_postgres_setup_done = False
+
+# LangGraph stream_mode=debug emits (mode, data) where data["payload"]["name"] is the graph node id.
+_GRAPH_NODE_SSE_LABELS: dict[str, str] = {
+    "coordinator_agent": "Coordinating…",
+    "profile_intake_agent": "Updating your profile…",
+    "profile_intake_agent_tool_node": "Saving to the meetup registry…",
+    "meetup_coordination_agent": "Looking for matches…",
+    "meetup_coordination_agent_tool_node": "Running meetup tools…",
+}
+
+
+def _normalize_stream_chunk(chunk: tuple[Any, ...]) -> tuple[str, Any] | None:
+    """LangGraph yields (mode, data) or (namespace, mode, data) when streaming subgraphs."""
+    if len(chunk) == 2:
+        return chunk[0], chunk[1]
+    if len(chunk) == 3:
+        return chunk[1], chunk[2]
+    return None
+
+
+def _sse_line_for_debug_chunk(chunk: tuple[Any, ...]) -> str | None:
+    """Turn a single LangGraph debug stream chunk into short status text for the UI, or None."""
+    normalized = _normalize_stream_chunk(chunk)
+    if not normalized:
+        return None
+    mode, data = normalized
+    if mode != "debug" or not isinstance(data, dict):
+        return None
+    if data.get("type") != "task":
+        return None
+    payload = data.get("payload")
+    if not isinstance(payload, dict):
+        return None
+    name = payload.get("name")
+    if not isinstance(name, str):
+        return None
+    return _GRAPH_NODE_SSE_LABELS.get(name)
 
 
 def _state_field_as_dict(value: Any) -> dict[str, Any]:
@@ -86,6 +132,14 @@ def profile_intake_agent_tool_router(state) -> str:
     # If the model emitted tool_calls, run tools first — even when final_answer is also true.
     # Otherwise the graph skips tools, and the next LLM call hits OpenAI's
     # "assistant with tool_calls must be followed by tool messages" error.
+    if (
+        state.profile_intake_agent.final_answer
+        and len(state.profile_intake_agent.tool_calls) > 0
+        and append_profile_tool_ran_after_last_user(state.messages)
+    ):
+        # Model often re-emits the same tool call after tools ran; executing again loops until max iterations.
+        logger.info("profile_intake_agent_tool_router: finish (append already ran this turn, ignoring duplicate tool_calls)")
+        return "end"
     if len(state.profile_intake_agent.tool_calls) > 0:
         return "tools"
     if state.profile_intake_agent.final_answer:
@@ -123,8 +177,10 @@ workflow = StateGraph(State)
 
 profile_intake_tools = [append_my_learning_profile]
 profile_intake_tool_node = ToolNode(profile_intake_tools)
+# LangChain tool + InjectedState: LLM only supplies want_to_learn / can_teach; identity comes from graph state.
 profile_intake_tool_descriptions = cast(
-    List[Dict[str, Any]], get_tool_descriptions(profile_intake_tools)
+    List[Dict[str, Any]],
+    [convert_to_openai_function(append_my_learning_profile)],
 )
 
 meetup_coordination_tools = [
@@ -160,7 +216,9 @@ workflow.add_conditional_edges(
     profile_intake_agent_tool_router,
     {
         "tools": "profile_intake_agent_tool_node",
-        "end": "coordinator_agent",
+        # Profile then meetup coordination in one user turn. The coordinator short-circuits after
+        # the first specialist (iteration >= 1), so it cannot route to meetup_coordination after profile.
+        "end": "meetup_coordination_agent",
     },
 )
 
@@ -181,26 +239,13 @@ workflow.add_edge("meetup_coordination_agent_tool_node", "meetup_coordination_ag
 
 
 def run_agent_stream_wrapper(question: str, thread_id: str, telegram_handle: str | None = None):
+    global _postgres_setup_done
 
     def _string_for_sse(message: str):
         return f"data: {message}\n\n"
 
-    def _process_graph_event(chunk):
-
-        def _is_node_start(chunk):
-            return chunk[1].get("type") == "task"
-
-        if _is_node_start(chunk):
-            if chunk[1].get("payload", {}).get("name") == "intent_router_node":
-                return "Analysing the question..."
-            if chunk[1].get("payload", {}).get("name") == "agent_node":
-                return "Planning..."
-            if chunk[1].get("payload", {}).get("name") == "tool_node":
-                return "Running tools..."
-        else:
-            return False
-
     handle = telegram_handle if telegram_handle else thread_id
+    t0 = time.monotonic()
 
     logger.info(
         "run_agent_stream: start thread_id=%s telegram_handle=%s query_len=%d",
@@ -208,6 +253,9 @@ def run_agent_stream_wrapper(question: str, thread_id: str, telegram_handle: str
         handle,
         len(question or ""),
     )
+
+    # Immediate SSE so the client shows activity before the first LLM returns (several nodes run).
+    yield _string_for_sse("Working on your request…")
 
     result: dict[str, Any] = {}
 
@@ -243,9 +291,13 @@ def run_agent_stream_wrapper(question: str, thread_id: str, telegram_handle: str
     with PostgresSaver.from_conn_string(
         "postgresql://langgraph_user:langgraph_password@postgres:5432/langgraph_db"
     ) as checkpointer:
-        # Required once: creates checkpoint_migrations, checkpoints, etc. (see PostgresSaver.setup docstring)
-        checkpointer.setup()
-        logger.info("PostgresSaver checkpoint tables ready")
+        with _postgres_setup_lock:
+            if not _postgres_setup_done:
+                checkpointer.setup()
+                _postgres_setup_done = True
+                logger.info("PostgresSaver: one-time setup completed")
+            else:
+                logger.debug("PostgresSaver: skipping setup (already done this process)")
 
         graph = workflow.compile(checkpointer=checkpointer)
 
@@ -254,14 +306,14 @@ def run_agent_stream_wrapper(question: str, thread_id: str, telegram_handle: str
             config=config,
             stream_mode=["debug", "values"],
         ):
-            chunk = cast(tuple[str, Any], raw_chunk)
-            processed_chunk = _process_graph_event(chunk)
+            chunk = cast(tuple[Any, ...], raw_chunk)
+            status = _sse_line_for_debug_chunk(chunk)
+            if status:
+                yield _string_for_sse(status)
 
-            if processed_chunk:
-                yield _string_for_sse(processed_chunk)
-
-            if chunk[0] == "values":
-                payload = chunk[1]
+            norm = _normalize_stream_chunk(chunk)
+            if norm and norm[0] == "values":
+                payload = norm[1]
                 if isinstance(payload, dict):
                     result = payload
                 elif isinstance(payload, State):
@@ -320,11 +372,13 @@ def run_agent_stream_wrapper(question: str, thread_id: str, telegram_handle: str
             thread_id,
         )
 
+    elapsed = time.monotonic() - t0
     logger.info(
-        "run_agent_stream: done thread_id=%s answer_len=%d registry_users=%d",
+        "run_agent_stream: done thread_id=%s answer_len=%d registry_users=%d elapsed_sec=%.2f",
         thread_id,
         len(final_answer),
         len(registry),
+        elapsed,
     )
 
     yield _string_for_sse(
