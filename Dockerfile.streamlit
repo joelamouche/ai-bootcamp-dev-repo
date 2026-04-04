@@ -10,6 +10,11 @@ ENV UV_LINK_MODE=copy
 # Set Python path to include the src directory for imports
 ENV PYTHONPATH="/app/src:$PYTHONPATH"
 
+# hdbscan and similar packages compile C extensions; bookworm-slim has no compiler.
+# Linux aarch64 often has no binary wheel, so a toolchain is required for uv sync.
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only dependency files first for better layer caching
 COPY pyproject.toml uv.lock ./
 

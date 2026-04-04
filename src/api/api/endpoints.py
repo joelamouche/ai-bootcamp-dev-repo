@@ -19,8 +19,21 @@ def rag(
     payload: AgentRequest
 ) -> StreamingResponse:
 
+    q = (payload.query or "").replace("\n", " ").strip()
+    q_preview = q[:200] + ("…" if len(q) > 200 else "")
+    logger.info(
+        "POST /rag thread_id=%s query_len=%d preview=%r",
+        payload.thread_id,
+        len(payload.query or ""),
+        q_preview,
+    )
+
     return StreamingResponse(
-        run_agent_stream_wrapper(payload.query, payload.thread_id),
+        run_agent_stream_wrapper(
+            payload.query,
+            payload.thread_id,
+            telegram_handle=payload.telegram_handle,
+        ),
         media_type="text/event-stream"
     )
 

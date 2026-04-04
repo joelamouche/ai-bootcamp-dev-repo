@@ -5,6 +5,10 @@ from typing import Optional, List, Union
 class AgentRequest(BaseModel):
     query: str = Field(..., description="The query to be used in the RAG pipeline")
     thread_id: str = Field(..., description="The thread ID")
+    telegram_handle: Optional[str] = Field(
+        default=None,
+        description="Optional Telegram @handle or username; defaults to thread_id if omitted",
+    )
 
 
 class RAGUsedContext(BaseModel):

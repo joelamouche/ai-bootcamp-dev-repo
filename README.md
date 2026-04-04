@@ -44,6 +44,36 @@ This repo starts from the **Amazon shopping assistant** template used in the AI 
 
 **User identity in context:** Telegram handles are stored **next to** each user’s learn/teach request in the global context so the agent can reach out to the right people when coordinating meetups.
 
+### Agent graph (FastAPI / LangGraph)
+
+The backend graph is **coordinator-led**: one turn can chain specialists before the user gets a final answer.
+
+```mermaid
+flowchart TB
+    START([START]) --> COORD[coordinator_agent]
+    COORD -->|direct reply / plan complete| END([END])
+    COORD -->|delegate| PI[profile_intake_agent]
+    COORD -->|delegate| MC[meetup_coordination_agent]
+    PI --> PITOOLS[profile_intake ToolNode]
+    PITOOLS --> PI
+    PI -->|iteration / final_answer| COORD
+    MC --> MCTOOLS[meetup_coordination ToolNode]
+    MCTOOLS --> MC
+    MC -->|iteration / final_answer| COORD
+```
+
+| Node | Role |
+|------|------|
+| **coordinator_agent** | Routes the message: answer small-talk directly, or delegate to profile intake and/or meetup coordination (multi-step plans). |
+| **profile_intake_agent** | Parses learn/teach intent and calls **`append_my_learning_profile`** to upsert the user in the **in-memory global registry** (MVP; replace with Qdrant later). |
+| **meetup_coordination_agent** | Calls **`get_meetup_community_registry`** to read the full registry for planning only, then **`create_meetup_proposal_and_notify`** to record a session proposal and enqueue **per-participant notifications** (handles included for the Telegram layer). Prompts require **privacy-safe** replies: no other users’ handles or profiles in the user-visible text. |
+
+Tool nodes mirror the shopping template: each specialist can loop on tools until `final_answer` is set, then control returns to the coordinator.
+
+Legacy **Amazon shopping** agent functions remain in `agents.py` for reference; the live graph no longer uses Qdrant for the final response (that block is **commented** in `graph.py`).
+
+**API:** `POST /rag` accepts optional **`telegram_handle`** on the request body; if omitted, the backend uses `thread_id` as the display handle.
+
 ---
 
 *ETHGlobal Cannes — AI that connects people in the real world.*
